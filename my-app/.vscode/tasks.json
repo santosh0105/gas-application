@@ -1,0 +1,38 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start API Server",
+			"type": "shell",
+			"command": "uvicorn app.main:app --reload",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start API Server",
+			"type": "shell",
+			"command": "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start API Server",
+			"type": "shell",
+			"command": "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start API Server",
+			"type": "shell",
+			"command": "cd C:/my-app && .\\venv\\Scripts\\activate && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+			"isBackground": true
+		},
+		{
+			"label": "Start API Server",
+			"type": "shell",
+			"command": "cd C:/my-app && .\\venv\\Scripts\\activate && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+			"isBackground": true
+		}
+	]
+}
