@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gas Cylinder Booking System</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+
+        // Lucide icons
+        const AlertCircle = () => <i data-lucide="alert-circle"></i>;
+        const CheckCircle = () => <i data-lucide="check-circle"></i>;
+        const Server = () => <i data-lucide="server"></i>;
+        const LogIn = () => <i data-lucide="log-in"></i>;
+        const LogOut = () => <i data-lucide="log-out"></i>;
+        const UserPlus = () => <i data-lucide="user-plus"></i>;
+        const Package = () => <i data-lucide="package"></i>;
+        const ShoppingCart = () => <i data-lucide="shopping-cart"></i>;
+        const Settings = () => <i data-lucide="settings"></i>;
+
+        function GasCylinderApp() {
+            const [apiUrl] = useState('http://localhost:8000');
+            const [token, setToken] = useState('');
+            const [currentUser, setCurrentUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('login');
+            const [response, setResponse] = useState(null);
+            const [loading, setLoading] = useState(false);
+
+            const [loginEmail, setLoginEmail] = useState('');
+            const [loginPassword, setLoginPassword] = useState('');
+
+            const [registerData, setRegisterData] = useState({
+                email: '',
+                password: '',
+                mobile: '',
+                business_name: '',
+                address: ''
+            });
+
+            const [orderData, setOrderData] = useState({
+                cylinder_type_id: 1,
+                quantity: 1,
+                delivery_slot: new Date().toISOString().slice(0, 16)
+            });
+
+            const [cylinderData, setCylinderData] = useState({
+                name: '',
+                capacity: 0,
+                price: 0,
+                available_quantity: 0
+            });
+
+            const [cylinderTypes, setCylinderTypes] = useState([]);
+            const [orders, setOrders] = useState([]);
+
+            useEffect(() => {
+                lucide.createIcons();
+            });
+
+            const apiCall = async (endpoint, method = 'GET', body = null, useAuth = true) => {
+                setLoading(true);
+                setResponse(null);
+                
+                try {
+                    const options = {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    };
+
+                    if (useAuth && token) {
+                        options.headers['Authorization'] = `Bearer ${token}`;
+                    }
+
+                    if (body && method !== 'GET') {
+                        options.body = JSON.stringify(body);
+                    }
+
+                    const res = await fetch(`${apiUrl}${endpoint}`, options);
+                    const data = await res.json();
+                    
+                    setResponse({
+                        status: res.status,
+                        statusText: res.statusText,
+                        data: JSON.stringify(data, null, 2)
+                    });
+
+                    return { success: res.ok, data };
+                } catch (error) {
+                    setResponse({
+                        status: 'Error',
+                        statusText: error.message,
+                        data: null
+                    });
+                    return { success: false, error };
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleLogin = async () => {
+                const formData = new URLSearchParams();
+                formData.append('username', loginEmail);
+                formData.append('password', loginPassword);
+
+                setLoading(true);
+                try {
+                    const res = await fetch(`${apiUrl}/token`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: formData
+                    });
+
+                    const data = await res.json();
+                    
+                    if (res.ok) {
+                        setToken(data.access_token);
+                        setResponse({
+                            status: res.status,
+                            statusText: 'Login Successful',
+                            data: JSON.stringify(data, null, 2)
+                        });
+                        fetchCurrentUser(data.access_token);
+                    } else {
+                        setResponse({
+                            status: res.status,
+                            statusText: 'Login Failed',
+                            data: JSON.stringify(data, null, 2)
+                        });
+                    }
+                } catch (error) {
+                    setResponse({
+                        status: 'Error',
+                        statusText: error.message,
+                        data: null
+                    });
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const fetchCurrentUser = async (authToken = token) => {
+                try {
+                    const res = await fetch(`${apiUrl}/users/me`, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+                    if (res.ok) {
+                        const user = await res.json();
+                        setCurrentUser(user);
+                        setActiveTab('cylinders');
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch user:', error);
+                }
+            };
+
+            const handleRegister = async () => {
+                const result = await apiCall('/api/users/', 'POST', registerData, false);
+                if (result.success) {
+                    setLoginEmail(registerData.email);
+                    setActiveTab('login');
+                }
+            };
+
+            const handleLogout = () => {
+                setToken('');
+                setCurrentUser(null);
+                setActiveTab('login');
+            };
+
+            const fetchCylinderTypes = async () => {
+                const result = await apiCall('/api/cylinder-types/', 'GET', null, false);
+                if (result.success) {
+                    setCylinderTypes(result.data);
+                }
+            };
+
+            const fetchOrders = async () => {
+                const result = await apiCall('/api/orders/');
+                if (result.success) {
+                    setOrders(result.data);
+                }
+            };
+
+            const createOrder = async () => {
+                await apiCall('/api/orders/', 'POST', orderData);
+                fetchOrders();
+            };
+
+            const createCylinderType = async () => {
+                await apiCall('/api/cylinder-types/', 'POST', cylinderData);
+                fetchCylinderTypes();
+            };
+
+            useEffect(() => {
+                fetchCylinderTypes();
+            }, []);
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 mb-4 p-6">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Package />
+                                    <div>
+                                        <h1 className="text-3xl font-bold text-white">Gas Cylinder Booking System</h1>
+                                        {currentUser && (
+                                            <p className="text-blue-300 text-sm mt-1">
+                                                Welcome, {currentUser.business_name} ({currentUser.role})
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                {currentUser && (
+                                    <button
+                                        onClick={handleLogout}
+                                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center gap-2 transition-colors"
+                                    >
+                                        <LogOut />
+                                        Logout
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            <div className="lg:col-span-2 bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-6">
+                                {!token ? (
+                                    <>
+                                        <div className="flex gap-2 mb-6">
+                                            <button
+                                                onClick={() => setActiveTab('login')}
+                                                className={`flex-1 px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors ${activeTab === 'login' ? 'bg-blue-600 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}
+                                            >
+                                                <LogIn />
+                                                Login
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('register')}
+                                                className={`flex-1 px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors ${activeTab === 'register' ? 'bg-blue-600 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}
+                                            >
+                                                <UserPlus />
+                                                Register
+                                            </button>
+                                        </div>
+
+                                        {activeTab === 'login' && (
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-white font-medium mb-2">Email</label>
+                                                    <input
+                                                        type="email"
+                                                        value={loginEmail}
+                                                        onChange={(e) => setLoginEmail(e.target.value)}
+                                                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-white font-medium mb-2">Password</label>
+                                                    <input
+                                                        type="password"
+                                                        value={loginPassword}
+                                                        onChange={(e) => setLoginPassword(e.target.value)}
+                                                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={handleLogin}
+                                                    disabled={loading}
+                                                    className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all disabled:opacity-50"
+                                                >
+                                                    {loading ? 'Logging in...' : 'Login'}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {activeTab === 'register' && (
+                                            <div className="space-y-4">
+                                                <input
+                                                    type="email"
+                                                    placeholder="Email"
+                                                    value={registerData.email}
+                                                    onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
+                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                />
+                                                <input
+                                                    type="password"
+                                                    placeholder="Password"
+                                                    value={registerData.password}
+                                                    onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
+                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                />
+                                                <input
+                                                    type="tel"
+                                                    placeholder="Mobile"
+                                                    value={registerData.mobile}
+                                                    onChange={(e) => setRegisterData({...registerData, mobile: e.target.value})}
+                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Business Name"
+                                                    value={registerData.business_name}
+                                                    onChange={(e) => setRegisterData({...registerData, business_name: e.target.value})}
+                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                />
+                                                <textarea
+                                                    placeholder="Address"
+                                                    value={registerData.address}
+                                                    onChange={(e) => setRegisterData({...registerData, address: e.target.value})}
+                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                    rows="3"
+                                                />
+                                                <button
+                                                    onClick={handleRegister}
+                                                    disabled={loading}
+                                                    className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all disabled:opacity-50"
+                                                >
+                                                    {loading ? 'Registering...' : 'Register'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex gap-2 mb-6 overflow-x-auto">
+                                            <button
+                                                onClick={() => { setActiveTab('cylinders'); fetchCylinderTypes(); }}
+                                                className={`px-4 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap transition-colors ${activeTab === 'cylinders' ? 'bg-blue-600 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}
+                                            >
+                                                <Package />
+                                                Cylinders
+                                            </button>
+                                            <button
+                                                onClick={() => { setActiveTab('orders'); fetchOrders(); }}
+                                                className={`px-4 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap transition-colors ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}
+                                            >
+                                                <ShoppingCart />
+                                                Orders
+                                            </button>
+                                            {currentUser?.role === 'admin' && (
+                                                <button
+                                                    onClick={() => setActiveTab('admin')}
+                                                    className={`px-4 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap transition-colors ${activeTab === 'admin' ? 'bg-blue-600 text-white' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}
+                                                >
+                                                    <Settings />
+                                                    Admin
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {activeTab === 'cylinders' && (
+                                            <div className="space-y-4">
+                                                <h3 className="text-xl font-bold text-white mb-4">Available Cylinders</h3>
+                                                <div className="grid gap-4">
+                                                    {cylinderTypes.map((cylinder) => (
+                                                        <div key={cylinder.id} className="bg-white/10 p-4 rounded-lg border border-white/20">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <h4 className="text-white font-bold text-lg">{cylinder.name}</h4>
+                                                                    <p className="text-white/70">Capacity: {cylinder.capacity} kg</p>
+                                                                    <p className="text-white/70">Available: {cylinder.available_quantity}</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-2xl font-bold text-green-400">₹{cylinder.price}</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-6 p-4 bg-blue-500/20 rounded-lg border border-blue-400/30">
+                                                    <h4 className="text-white font-bold mb-3">Create New Order</h4>
+                                                    <div className="space-y-3">
+                                                        <select
+                                                            value={orderData.cylinder_type_id}
+                                                            onChange={(e) => setOrderData({...orderData, cylinder_type_id: parseInt(e.target.value)})}
+                                                            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                        >
+                                                            {cylinderTypes.map((c) => (
+                                                                <option key={c.id} value={c.id}>{c.name} - ₹{c.price}</option>
+                                                            ))}
+                                                        </select>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={orderData.quantity}
+                                                            onChange={(e) => setOrderData({...orderData, quantity: parseInt(e.target.value)})}
+                                                            placeholder="Quantity"
+                                                            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                        />
+                                                        <input
+                                                            type="datetime-local"
+                                                            value={orderData.delivery_slot}
+                                                            onChange={(e) => setOrderData({...orderData, delivery_slot: e.target.value})}
+                                                            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                        />
+                                                        <button
+                                                            onClick={createOrder}
+                                                            disabled={loading}
+                                                            className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                                                        >
+                                                            Place Order
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {activeTab === 'orders' && (
+                                            <div className="space-y-4">
+                                                <h3 className="text-xl font-bold text-white mb-4">My Orders</h3>
+                                                {orders.map((order) => (
+                                                    <div key={order.id} className="bg-white/10 p-4 rounded-lg border border-white/20">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <p className="text-white font-bold">Order #{order.id}</p>
+                                                                <p className="text-white/70">Quantity: {order.quantity}</p>
+                                                                <p className="text-white/70">Status: {order.order_status}</p>
+                                                                <p className="text-white/70">Payment: {order.payment_status}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-xl font-bold text-green-400">₹{order.total_amount}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {activeTab === 'admin' && currentUser?.role === 'admin' && (
+                                            <div className="space-y-4">
+                                                <h3 className="text-xl font-bold text-white mb-4">Admin: Add Cylinder Type</h3>
+                                                <div className="space-y-3">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Cylinder Name"
+                                                        value={cylinderData.name}
+                                                        onChange={(e) => setCylinderData({...cylinderData, name: e.target.value})}
+                                                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        step="0.1"
+                                                        placeholder="Capacity (kg)"
+                                                        value={cylinderData.capacity}
+                                                        onChange={(e) => setCylinderData({...cylinderData, capacity: parseFloat(e.target.value)})}
+                                                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        placeholder="Price"
+                                                        value={cylinderData.price}
+                                                        onChange={(e) => setCylinderData({...cylinderData, price: parseFloat(e.target.value)})}
+                                                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Available Quantity"
+                                                        value={cylinderData.available_quantity}
+                                                        onChange={(e) => setCylinderData({...cylinderData, available_quantity: parseInt(e.target.value)})}
+                                                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                                    />
+                                                    <button
+                                                        onClick={createCylinderType}
+                                                        disabled={loading}
+                                                        className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                                                    >
+                                                        Create Cylinder Type
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-6">
+                                <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
+                                    <Server />
+                                    API Response
+                                </h3>
+                                
+                                {response ? (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            {response.status >= 200 && response.status < 300 ? (
+                                                <CheckCircle />
+                                            ) : (
+                                                <AlertCircle />
+                                            )}
+                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${response.status >= 200 && response.status < 300 ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+                                                {response.status} {response.statusText}
+                                            </span>
+                                        </div>
+                                        
+                                        {response.data && (
+                                            <pre className="bg-black/30 p-4 rounded-lg overflow-x-auto max-h-96">
+                                                <code className="text-green-300 text-xs">{response.data}</code>
+                                            </pre>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="text-white/50 text-center py-8">
+                                        <Server />
+                                        <p>API responses will appear here</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<GasCylinderApp />);
+    </script>
+</body>
+</html>
